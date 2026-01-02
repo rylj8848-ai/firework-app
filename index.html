@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3209/3209930.png">
     
     <title>花火管家</title>
+    <!-- Tailwind CSS 依然保留 CDN 以便快速样式渲染 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -105,7 +106,7 @@
 </head>
 <body>
     <div id="root"></div>
-    <!-- 指向 src 目录 -->
+    <!-- 指向 src 目录下的入口文件，Vite 会自动处理打包 -->
     <script type="module" src="/src/index.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
