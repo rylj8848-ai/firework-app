@@ -10,6 +10,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     build: {
       outDir: 'dist',
+      // 将警告限制调整为 1500KB，消除第三方库打包过大时的感叹号警告
+      chunkSizeWarningLimit: 1500,
     },
     // 不再向前端注入 process.env.API_KEY，改用后端 API 路由
     define: {
