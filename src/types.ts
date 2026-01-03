@@ -23,10 +23,12 @@ export interface FireworkItem {
   category: Category;
   quantity: number;
   minThreshold: number;
-  price: number;
-  cost: number;
+  price: number;          // 零售价
+  wholesalePrice: number; // 批发价
+  cost: number;           // 进价
   safetyLevel: SafetyLevel;
   lastUpdated: string;
+  imageUrl?: string;      // 新增：图片Base64数据
   description?: string;
 }
 

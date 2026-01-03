@@ -6,15 +6,13 @@ import Dashboard from './components/Dashboard';
 import InventoryTable from './components/InventoryTable';
 import AIInsightsPanel from './components/AIInsightsPanel';
 
-// 模拟微信小程序顶部导航栏组件
+// 顶部导航栏：增加磨砂玻璃效果，文字使用渐变色
 const WechatNavBar: React.FC<{ title: string; onAdd?: () => void }> = ({ title, onAdd }) => (
-  <div className="flex-none h-[44px] bg-[#1c1c1b] flex items-center justify-center relative border-b border-[#d97706]/10 z-50">
-    {/* 模拟左上角返回/Home占位 (如果不是首页) */}
-    {/* <div className="absolute left-4 text-slate-400"><i className="fas fa-chevron-left"></i></div> */}
-    
-    <div className="font-bold text-[17px] text-[#fdf6e3] tracking-wide font-sans">{title}</div>
-    
-    {/* 右侧模拟胶囊按钮的占位，避免内容重叠。真实微信中这里有胶囊按钮 */}
+  <div className="flex-none h-[44px] bg-white/80 backdrop-blur-md flex items-center justify-center relative border-b border-slate-200/50 z-50 shadow-sm sticky top-0">
+    <div className="font-bold text-[18px] text-slate-800 tracking-wide font-sans bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-700">
+      {title}
+    </div>
+    {/* 右侧胶囊占位 */}
     <div className="absolute right-4 w-[87px] h-[32px] pointer-events-none"></div>
   </div>
 );
@@ -30,11 +28,17 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'dashboard'>('inventory');
   const [isAdding, setIsAdding] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('firework_inventory', JSON.stringify(items));
+    try {
+      localStorage.setItem('firework_inventory', JSON.stringify(items));
+    } catch (e) {
+      alert("存储空间已满，请删除部分商品或不上传图片");
+    }
+    
     const totalValue = items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
     const today = new Date().toISOString().split('T')[0];
     setHistory(prev => {
@@ -62,11 +66,41 @@ const App: React.FC = () => {
   }, []);
 
   const deleteItem = useCallback((id: string) => {
-    // 微信风格的确认框通常不同，这里简化使用 confirm
-    if (window.confirm('确定要移出台账吗？')) {
+    if (window.confirm('确定要删除该商品吗？此操作无法撤销。')) {
       setItems(prev => prev.filter(item => item.id !== id));
     }
   }, []);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 500; 
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          setPreviewImage(dataUrl);
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const addItem = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -79,137 +113,202 @@ const App: React.FC = () => {
       quantity: Number(formData.get('quantity')),
       minThreshold: Number(formData.get('minThreshold')),
       price: Number(formData.get('price')),
+      wholesalePrice: Number(formData.get('wholesalePrice')),
       cost: Number(formData.get('cost')),
       safetyLevel: formData.get('safetyLevel') as SafetyLevel,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
+      imageUrl: previewImage || undefined
     };
     setItems(prev => [newItem, ...prev]);
     setIsAdding(false);
+    setPreviewImage(null); 
+  };
+
+  const closeAddModal = () => {
+    setIsAdding(false);
+    setPreviewImage(null);
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#1c1c1b] text-slate-200 overflow-hidden">
-      <div className="fixed inset-0 cloud-bg pointer-events-none"></div>
-
-      {/* 顶部状态栏占位 (适配刘海屏) */}
-      <div className="safe-pt w-full bg-[#1c1c1b]"></div>
+    <div className="flex flex-col h-screen w-screen relative overflow-hidden">
       
-      {/* 微信风格导航栏 */}
+      {/* 状态栏背景占位 */}
+      <div className="safe-pt w-full bg-white/80 backdrop-blur-md sticky top-0 z-[60]"></div>
+      
       <WechatNavBar 
-        title={activeTab === 'dashboard' ? '花火管家·看板' : '库存台账'} 
+        title={activeTab === 'dashboard' ? '经营概况' : '库存列表'} 
       />
 
-      {/* 滚动内容区域 (flex-1 自动填充中间区域) */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-20 no-scrollbar relative z-10">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-28 no-scrollbar relative z-10">
         {activeTab === 'dashboard' ? (
-          <div className="space-y-6">
+          <div className="space-y-5">
             <Dashboard items={items} history={history} />
             <AIInsightsPanel items={items} />
           </div>
         ) : (
-          <div className="min-h-[101%]"> {/* 确保能滚动，触发下拉刷新感 */}
+          <div className="min-h-[101%]">
             <InventoryTable items={items} onUpdateQuantity={updateQuantity} onDeleteItem={deleteItem} />
           </div>
         )}
       </main>
 
-      {/* 微信风格底部 TabBar */}
-      <nav className="flex-none bg-[#262624] border-t border-[#3f3f3e] flex justify-around items-center pb-safe-area safe-pb z-50 shadow-2xl">
+      {/* 底部 TabBar：磨砂质感 + 渐变图标 */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200/60 flex justify-around items-center pb-safe-area safe-pb z-50 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)]">
+        
         <button 
-          onClick={() => setActiveTab('dashboard')} 
-          className="flex flex-col items-center justify-center w-full py-2 active:bg-white/5 transition-colors"
+          onClick={() => setActiveTab('inventory')} 
+          className="flex flex-col items-center justify-center w-full py-2 active:bg-slate-50/50 transition-colors"
         >
-          <div className={`text-[20px] mb-0.5 ${activeTab === 'dashboard' ? 'text-[#b91c1c]' : 'text-slate-500'}`}>
-            <i className={`fas ${activeTab === 'dashboard' ? 'fa-chart-pie' : 'fa-chart-pie'}`}></i>
+          <div className={`text-[22px] mb-0.5 transition-all ${activeTab === 'inventory' ? 'text-indigo-600 scale-110 drop-shadow-sm' : 'text-slate-400'}`}>
+            <i className="fas fa-list-ul"></i>
           </div>
-          <span className={`text-[10px] ${activeTab === 'dashboard' ? 'text-[#b91c1c] font-bold' : 'text-slate-500'}`}>
-            经营
+          <span className={`text-[10px] font-medium ${activeTab === 'inventory' ? 'text-indigo-600' : 'text-slate-500'}`}>
+            库存
           </span>
         </button>
 
-        {/* 核心操作按钮：入库 (突出显示，模拟中间的大按钮) */}
+        {/* 核心操作按钮：强烈的渐变色 */}
         <button 
           onClick={() => setIsAdding(true)} 
-          className="flex flex-col items-center justify-center w-full py-2 -mt-6"
+          className="flex flex-col items-center justify-center w-full py-2 -mt-8 relative z-10"
         >
-          <div className="w-12 h-12 rounded-full bg-[#b91c1c] text-white flex items-center justify-center shadow-lg border-4 border-[#1c1c1b] active:scale-95 transition-transform">
-            <i className="fas fa-plus text-lg"></i>
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-purple-200 border-4 border-[#f9fafb] active:scale-95 transition-transform">
+            <i className="fas fa-plus text-xl"></i>
           </div>
-          <span className="text-[10px] text-slate-400 mt-1">入库</span>
+          <span className="text-[10px] text-slate-500 mt-1 font-medium">入库</span>
         </button>
 
         <button 
-          onClick={() => setActiveTab('inventory')} 
-          className="flex flex-col items-center justify-center w-full py-2 active:bg-white/5 transition-colors"
+          onClick={() => setActiveTab('dashboard')} 
+          className="flex flex-col items-center justify-center w-full py-2 active:bg-slate-50/50 transition-colors"
         >
-          <div className={`text-[20px] mb-0.5 ${activeTab === 'inventory' ? 'text-[#b91c1c]' : 'text-slate-500'}`}>
-            <i className="fas fa-list-ul"></i>
+          <div className={`text-[22px] mb-0.5 transition-all ${activeTab === 'dashboard' ? 'text-indigo-600 scale-110 drop-shadow-sm' : 'text-slate-400'}`}>
+            <i className="fas fa-chart-pie"></i>
           </div>
-          <span className={`text-[10px] ${activeTab === 'inventory' ? 'text-[#b91c1c] font-bold' : 'text-slate-500'}`}>
-            库存
+          <span className={`text-[10px] font-medium ${activeTab === 'dashboard' ? 'text-indigo-600' : 'text-slate-500'}`}>
+            经营
           </span>
         </button>
       </nav>
 
-      {/* 入库弹窗 (模拟 PageContainer) */}
+      {/* 入库弹窗 */}
       {isAdding && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/80 backdrop-blur-sm animate-[fadeIn_0.2s]">
-          <div className="bg-[#1c1c1b] w-full rounded-t-2xl p-6 max-h-[85vh] overflow-y-auto guofeng-card animate-[slide-up_0.3s_ease-out] safe-pb">
-            <div className="flex justify-between items-center mb-6 border-b border-[#3f3f3e] pb-4">
-              <h3 className="text-lg font-bold text-[#fdf6e3]">新增货品</h3>
-              <button onClick={() => setIsAdding(false)} className="text-slate-500 p-2 active:opacity-50">
-                <i className="fas fa-times text-xl"></i>
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/40 backdrop-blur-sm animate-[fadeIn_0.2s]">
+          <div className="bg-white/95 backdrop-blur-xl w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto animate-[slide-up_0.3s_ease-out] safe-pb shadow-2xl border-t border-white/50">
+            <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+              <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-pink-500">
+                <i className="fas fa-sparkles mr-2 text-indigo-500"></i>新品入库
+              </h3>
+              <button onClick={closeAddModal} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                <i className="fas fa-times"></i>
               </button>
             </div>
             
             <form onSubmit={addItem} className="space-y-5 pb-4">
-              <div className="space-y-1">
-                <label className="text-xs text-[#d97706] opacity-80">货品名称</label>
-                <input required name="name" className="w-full bg-[#262624] border border-[#3f3f3e] rounded-lg p-3 text-[#fdf6e3] focus:border-[#b91c1c] outline-none transition-colors" placeholder="如：大地红1000响" />
+              
+              <div className="mb-4">
+                <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">商品图片</label>
+                <div className="flex gap-4 items-stretch h-28">
+                    {/* Preview Box */}
+                    <div className="w-28 flex-shrink-0 bg-slate-50 rounded-2xl border-2 border-dashed border-indigo-100 flex items-center justify-center overflow-hidden relative shadow-sm">
+                         {previewImage ? (
+                            <>
+                                <img src={previewImage} alt="Preview" className="w-full h-full object-cover" />
+                                <button 
+                                    type="button"
+                                    onClick={() => setPreviewImage(null)}
+                                    className="absolute top-0 right-0 bg-rose-500/80 text-white w-7 h-7 flex items-center justify-center rounded-bl-xl backdrop-blur-sm shadow-sm"
+                                >
+                                    <i className="fas fa-times text-xs"></i>
+                                </button>
+                            </>
+                         ) : (
+                            <div className="text-center text-slate-300">
+                                <i className="fas fa-image text-2xl mb-1"></i>
+                                <p className="text-[10px]">预览</p>
+                            </div>
+                         )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex-1 flex flex-col gap-2.5 justify-center">
+                         <label className="flex-1 flex items-center justify-center bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-200 active:scale-[0.98] transition-all cursor-pointer relative overflow-hidden group">
+                            <i className="fas fa-camera mr-2"></i>
+                            <span>立即拍照</span>
+                            <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} className="hidden" />
+                         </label>
+
+                         <label className="flex-1 flex items-center justify-center bg-white text-slate-600 rounded-xl text-sm font-bold border border-slate-200 active:scale-[0.98] transition-all cursor-pointer hover:bg-slate-50 hover:border-indigo-200 hover:text-indigo-600">
+                            <i className="fas fa-images mr-2 text-indigo-400"></i>
+                            <span>相册上传</span>
+                            <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                         </label>
+                    </div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500">商品名称</label>
+                <input required name="name" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-slate-800 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 outline-none transition-all" placeholder="例如：加特林烟花" />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs text-[#d97706] opacity-80">初始库存</label>
-                  <input required type="number" name="quantity" className="w-full bg-[#262624] border border-[#3f3f3e] rounded-lg p-3 text-[#fdf6e3] text-center focus:border-[#b91c1c] outline-none" placeholder="0" />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500">当前库存</label>
+                  <input required type="number" name="quantity" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-slate-800 text-center font-bold focus:border-indigo-500 focus:bg-white outline-none transition-all" placeholder="0" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-[#d97706] opacity-80">零售价 (¥)</label>
-                  <input required type="number" step="0.01" name="price" className="w-full bg-[#262624] border border-[#3f3f3e] rounded-lg p-3 text-[#d97706] font-bold text-center focus:border-[#b91c1c] outline-none" placeholder="0.00" />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500">预警数量</label>
+                  <input required type="number" name="minThreshold" defaultValue="10" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-slate-800 text-center focus:border-indigo-500 focus:bg-white outline-none transition-all" />
                 </div>
+              </div>
+
+              {/* 价格录入区域 */}
+              <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase text-center block">进价</label>
+                      <input required type="number" step="0.1" name="cost" className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-600 text-center text-sm focus:border-indigo-500 outline-none" placeholder="0" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-indigo-400 uppercase text-center block">批发价</label>
+                      <input required type="number" step="0.1" name="wholesalePrice" className="w-full bg-indigo-50/30 border border-indigo-100 rounded-lg p-2.5 text-indigo-700 text-center text-sm font-medium focus:border-indigo-500 outline-none" placeholder="0" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-emerald-500 uppercase text-center block">零售价</label>
+                      <input required type="number" step="0.1" name="price" className="w-full bg-emerald-50/30 border border-emerald-100 rounded-lg p-2.5 text-emerald-700 font-bold text-center text-sm focus:border-emerald-500 outline-none" placeholder="0" />
+                    </div>
+                  </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-1">
-                  <label className="text-xs text-[#d97706] opacity-80">分类</label>
+                 <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500">分类</label>
                   <div className="relative">
-                    <select name="category" className="w-full bg-[#262624] border border-[#3f3f3e] rounded-lg p-3 text-[#fdf6e3] appearance-none focus:border-[#b91c1c] outline-none">
+                    <select name="category" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-slate-800 appearance-none focus:border-indigo-500 outline-none">
                       {Object.values(Category).map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
-                    <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none"></i>
+                    <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none"></i>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-[#d97706] opacity-80">风险等级</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500">风险等级</label>
                   <div className="relative">
-                    <select name="safetyLevel" className="w-full bg-[#262624] border border-[#3f3f3e] rounded-lg p-3 text-[#fdf6e3] appearance-none focus:border-[#b91c1c] outline-none">
+                    <select name="safetyLevel" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-slate-800 appearance-none focus:border-indigo-500 outline-none">
                       {Object.values(SafetyLevel).map(level => <option key={level} value={level}>{level}</option>)}
                     </select>
-                    <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none"></i>
+                    <i className="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none"></i>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs text-[#d97706] opacity-80">SKU / 编号</label>
-                <input required name="sku" className="w-full bg-[#262624] border border-[#3f3f3e] rounded-lg p-3 text-[#fdf6e3] focus:border-[#b91c1c] outline-none" placeholder="自动生成或手动输入" />
-                {/* 隐藏字段：成本和阈值设为默认，简化快速录入 */}
-                <input type="hidden" name="cost" value="0" />
-                <input type="hidden" name="minThreshold" value="10" />
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500">SKU / 编号</label>
+                <input required name="sku" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-slate-800 focus:border-indigo-500 focus:bg-white outline-none" placeholder="例如：FW-001" />
               </div>
 
-              <button type="submit" className="w-full py-3.5 mt-4 bg-[#b91c1c] text-white font-bold rounded-lg shadow-lg active:scale-[0.98] transition-transform flex items-center justify-center">
-                <i className="fas fa-check mr-2"></i> 确认入库
+              <button type="submit" className="w-full py-4 mt-4 bg-gradient-to-r from-indigo-600 to-pink-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 active:scale-[0.98] transition-transform flex items-center justify-center text-base">
+                <i className="fas fa-check-circle mr-2"></i> 确认入库
               </button>
             </form>
           </div>

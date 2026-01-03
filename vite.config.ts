@@ -11,9 +11,9 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
     },
-    // 关键配置：让前端代码可以使用 process.env.API_KEY
+    // 不再向前端注入 process.env.API_KEY，改用后端 API 路由
     define: {
-      'process.env.API_KEY': JSON.stringify(env.API_KEY)
+      // 保持为空或删除该行，避免密钥泄露到前端代码中
     }
   }
 })

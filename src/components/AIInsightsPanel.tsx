@@ -29,44 +29,50 @@ const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ items }) => {
 
   const getIcon = (type: AIInsight['type']) => {
     switch (type) {
-      case 'warning': return 'fa-fire-alt text-[#b91c1c]';
-      case 'success': return 'fa-leaf text-[#065f46]';
+      case 'warning': return 'fa-lightbulb text-amber-500';
+      case 'success': return 'fa-check-circle text-emerald-500';
       case 'info':
-      default: return 'fa-feather text-[#d97706]';
+      default: return 'fa-info-circle text-blue-500';
+    }
+  };
+
+  const getBg = (type: AIInsight['type']) => {
+    switch (type) {
+      case 'warning': return 'bg-amber-50/50 border-amber-100';
+      case 'success': return 'bg-emerald-50/50 border-emerald-100';
+      case 'info':
+      default: return 'bg-blue-50/50 border-blue-100';
     }
   };
 
   return (
-    <div className="guofeng-card p-6 rounded-xl border-t-4 border-t-[#b91c1c]">
-      <div className="flex items-center justify-between mb-8">
-        <h3 className="text-xl font-black flex items-center text-[#fdf6e3]">
-          <i className="fas fa-hat-wizard mr-3 text-[#d97706]"></i> 锦囊妙计
+    <div className="guofeng-card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-bold flex items-center text-slate-800">
+          <i className="fas fa-robot mr-2 text-indigo-500"></i> 智能建议
         </h3>
         <button 
           onClick={fetchInsights}
           disabled={loading}
-          className="text-[10px] font-bold px-3 py-2 bg-black/30 border border-[#d97706]/30 text-[#d97706] rounded-md transition-all active:scale-90"
+          className="text-[11px] font-medium px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-all active:scale-95 flex items-center"
         >
-          <i className={`fas fa-sync-alt mr-2 ${loading ? 'animate-spin' : ''}`}></i>
-          {loading ? '卜算中...' : '再寻良策'}
+          <i className={`fas fa-sync-alt mr-1.5 ${loading ? 'animate-spin' : ''}`}></i>
+          {loading ? '分析中...' : '刷新建议'}
         </button>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-3">
         {loading && insights.length === 0 ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-24 bg-black/20 animate-pulse rounded-lg border border-white/5"></div>
+            <div key={i} className="h-20 bg-slate-100 animate-pulse rounded-lg"></div>
           ))
         ) : (
           insights.map((insight, idx) => (
-            <div key={idx} className="relative pl-6 border-l border-[#d97706]/30">
-              <div className="absolute left-[-5px] top-0 w-2 h-2 rounded-full bg-[#d97706]"></div>
-              <div className="flex items-start">
-                <i className={`fas ${getIcon(insight.type)} mt-1 mr-3 opacity-80`}></i>
-                <div>
-                  <h5 className="font-bold text-[#fdf6e3] mb-2">{insight.title}</h5>
-                  <p className="text-xs text-slate-500 leading-relaxed italic">“ {insight.content} ”</p>
-                </div>
+            <div key={idx} className={`p-3 rounded-lg border ${getBg(insight.type)} flex items-start backdrop-blur-sm`}>
+              <i className={`fas ${getIcon(insight.type)} mt-0.5 mr-3 text-sm`}></i>
+              <div>
+                <h5 className="font-bold text-slate-800 text-xs mb-1">{insight.title}</h5>
+                <p className="text-xs text-slate-600 leading-relaxed">{insight.content}</p>
               </div>
             </div>
           ))
