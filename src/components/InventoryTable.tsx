@@ -6,9 +6,11 @@ interface InventoryTableProps {
   items: FireworkItem[];
   onUpdateQuantity: (id: string, delta: number) => void;
   onDeleteItem: (id: string) => void;
+  onSellItem: (item: FireworkItem) => void;
+  onScanClick: () => void; // 新增：扫码按钮点击事件
 }
 
-const InventoryTable: React.FC<InventoryTableProps> = ({ items, onUpdateQuantity, onDeleteItem }) => {
+const InventoryTable: React.FC<InventoryTableProps> = ({ items, onUpdateQuantity, onDeleteItem, onSellItem, onScanClick }) => {
   const [filter, setFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<Category | 'ALL'>('ALL');
 
@@ -30,18 +32,28 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, onUpdateQuantity
 
   return (
     <div className="space-y-3">
-      {/* 搜索与筛选 - 吸顶 */}
-      <div className="sticky top-[44px] z-40 bg-white/80 backdrop-blur-md pb-2 pt-2 -mx-4 px-4 shadow-sm">
-        <div className="bg-slate-100/50 p-2.5 rounded-2xl flex items-center shadow-inner border border-white/50 mb-3">
-          <i className="fas fa-search text-slate-400 ml-2 mr-2 text-sm"></i>
-          <input 
-            type="text"
-            placeholder="搜索商品名称或编号..."
-            className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          {filter && <button onClick={() => setFilter('')} className="text-slate-400 px-2"><i className="fas fa-times-circle"></i></button>}
+      {/* 搜索与筛选 - 吸顶优化 */}
+      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md pb-2 pt-2 -mx-4 px-4 shadow-sm border-b border-white/40">
+        <div className="flex gap-2 mb-3">
+            <div className="flex-1 bg-slate-100/50 p-2.5 rounded-2xl flex items-center shadow-inner border border-white/50">
+                <i className="fas fa-search text-slate-400 ml-2 mr-2 text-sm"></i>
+                <input 
+                    type="text"
+                    placeholder="搜索商品名称或编号..."
+                    className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                />
+                {filter && <button onClick={() => setFilter('')} className="text-slate-400 px-2"><i className="fas fa-times-circle"></i></button>}
+            </div>
+            
+            {/* 扫码售出按钮 */}
+            <button 
+                onClick={onScanClick}
+                className="w-11 flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-2xl shadow-md shadow-indigo-200 active:scale-95 transition-all"
+            >
+                <i className="fas fa-barcode text-lg"></i>
+            </button>
         </div>
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -101,19 +113,15 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, onUpdateQuantity
                   <h4 className="text-[15px] font-bold text-slate-800 leading-tight truncate mb-1">{item.name}</h4>
                   <p className="text-[11px] text-indigo-500 truncate font-medium">{item.category}</p>
                   
-                  {/* 价格展示区 - 增强版 */}
+                  {/* 价格展示区 */}
                   <div className="flex items-center gap-2 mt-2.5">
-                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 flex-1 text-center">
+                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 w-1/2 text-center">
                         <span className="text-[9px] text-slate-400 block uppercase">进价</span>
                         <span className="text-[10px] font-medium text-slate-600">¥{item.cost}</span>
                     </div>
-                    <div className="bg-indigo-50/50 px-2 py-1 rounded-lg border border-indigo-100 flex-1 text-center">
-                        <span className="text-[9px] text-indigo-400 block uppercase">批发</span>
-                        <span className="text-[10px] font-bold text-indigo-600">¥{item.wholesalePrice || item.price}</span>
-                    </div>
-                    <div className="flex-1 text-right pl-2">
+                    <div className="bg-emerald-50/50 px-2 py-1 rounded-lg border border-emerald-100 w-1/2 text-center">
                         <span className="text-[9px] text-emerald-500 block uppercase tracking-wide">零售</span>
-                        <span className="text-base font-black text-emerald-600">¥{item.price}</span>
+                        <span className="text-[13px] font-black text-emerald-600">¥{item.price}</span>
                     </div>
                   </div>
                 </div>
@@ -125,19 +133,35 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, onUpdateQuantity
                     onClick={() => onDeleteItem(item.id)} 
                     className="text-slate-400 hover:text-rose-500 p-2 text-xs flex items-center transition-colors"
                 >
-                    <i className="fas fa-trash-alt mr-1.5"></i> 删除
+                    <i className="fas fa-trash-alt mr-1"></i>
                 </button>
 
-                <div className="flex items-center space-x-1 bg-slate-100/50 rounded-lg p-1 border border-slate-100">
-                  <button onClick={() => onUpdateQuantity(item.id, -1)} className="w-7 h-7 rounded-md bg-white border border-slate-200 flex items-center justify-center text-slate-500 shadow-sm active:bg-slate-50 transition-colors">
-                    <i className="fas fa-minus text-[10px]"></i>
-                  </button>
-                  <span className={`text-sm font-bold w-8 text-center ${item.quantity <= item.minThreshold ? 'text-rose-500' : 'text-slate-700'}`}>
-                    {item.quantity}
-                  </span>
-                  <button onClick={() => onUpdateQuantity(item.id, 1)} className="w-7 h-7 rounded-md bg-indigo-600 border border-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-200 active:bg-indigo-700 transition-colors">
-                    <i className="fas fa-plus text-[10px]"></i>
-                  </button>
+                <div className="flex items-center space-x-2">
+                   {/* 核心出售按钮 */}
+                   <button 
+                      onClick={() => onSellItem(item)}
+                      disabled={item.quantity <= 0}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm active:scale-95 transition-all ${
+                        item.quantity <= 0 
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                        : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-200'
+                      }`}
+                   >
+                      <i className="fas fa-shopping-cart mr-1.5"></i> 出售
+                   </button>
+
+                   {/* 简单的库存微调 */}
+                   <div className="flex items-center space-x-1 bg-slate-100/50 rounded-lg p-1 border border-slate-100">
+                      <button onClick={() => onUpdateQuantity(item.id, -1)} className="w-6 h-6 rounded-md bg-white border border-slate-200 flex items-center justify-center text-slate-500 shadow-sm active:bg-slate-50 transition-colors">
+                        <i className="fas fa-minus text-[8px]"></i>
+                      </button>
+                      <span className={`text-xs font-bold w-6 text-center ${item.quantity <= item.minThreshold ? 'text-rose-500' : 'text-slate-700'}`}>
+                        {item.quantity}
+                      </span>
+                      <button onClick={() => onUpdateQuantity(item.id, 1)} className="w-6 h-6 rounded-md bg-indigo-600 border border-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-200 active:bg-indigo-700 transition-colors">
+                        <i className="fas fa-plus text-[8px]"></i>
+                      </button>
+                    </div>
                 </div>
               </div>
 

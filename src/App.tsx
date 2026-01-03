@@ -5,6 +5,7 @@ import { INITIAL_ITEMS } from './constants';
 import Dashboard from './components/Dashboard';
 import InventoryTable from './components/InventoryTable';
 import AIInsightsPanel from './components/AIInsightsPanel';
+import ScannerModal from './components/ScannerModal'; // 引入扫码组件
 
 // 顶部导航栏：增加磨砂玻璃效果，文字使用渐变色
 const WechatNavBar: React.FC<{ title: string; onAdd?: () => void }> = ({ title, onAdd }) => (
@@ -29,7 +30,16 @@ const App: React.FC = () => {
   });
 
   const [activeTab, setActiveTab] = useState<'inventory' | 'dashboard'>('inventory');
+  
+  // 模态框状态管理
   const [isAdding, setIsAdding] = useState(false);
+  const [sellingItem, setSellingItem] = useState<FireworkItem | null>(null);
+  
+  // 扫码相关状态
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanMode, setScanMode] = useState<'ADD' | 'SELL'>('SELL');
+  const [addFormSku, setAddFormSku] = useState(''); // 用于受控的入库SKU输入框
+
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -70,6 +80,50 @@ const App: React.FC = () => {
       setItems(prev => prev.filter(item => item.id !== id));
     }
   }, []);
+
+  const handleSellConfirm = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!sellingItem) return;
+    
+    const formData = new FormData(e.currentTarget);
+    const sellQty = Number(formData.get('sellQty'));
+    
+    if (sellQty > 0 && sellQty <= sellingItem.quantity) {
+       updateQuantity(sellingItem.id, -sellQty);
+       setSellingItem(null); 
+    } else {
+       alert("库存不足或输入无效！");
+    }
+  };
+
+  // 处理扫码成功
+  const handleScanSuccess = (decodedText: string) => {
+    setIsScanning(false); // 关闭扫码器
+
+    if (scanMode === 'ADD') {
+        // 入库模式：填入 SKU
+        setAddFormSku(decodedText);
+        // 如果想自动查询已存在的商品信息，可以在这里扩展逻辑
+    } else {
+        // 售出模式：查找商品并打开出售弹窗
+        const foundItem = items.find(item => item.sku === decodedText);
+        if (foundItem) {
+            setSellingItem(foundItem);
+        } else {
+            alert(`未找到 SKU 为 ${decodedText} 的商品，请先入库。`);
+        }
+    }
+  };
+
+  const openScannerForSell = () => {
+      setScanMode('SELL');
+      setIsScanning(true);
+  };
+
+  const openScannerForAdd = () => {
+      setScanMode('ADD');
+      setIsScanning(true);
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -113,7 +167,7 @@ const App: React.FC = () => {
       quantity: Number(formData.get('quantity')),
       minThreshold: Number(formData.get('minThreshold')),
       price: Number(formData.get('price')),
-      wholesalePrice: Number(formData.get('wholesalePrice')),
+      // wholesalePrice 移除
       cost: Number(formData.get('cost')),
       safetyLevel: formData.get('safetyLevel') as SafetyLevel,
       lastUpdated: new Date().toISOString(),
@@ -122,11 +176,13 @@ const App: React.FC = () => {
     setItems(prev => [newItem, ...prev]);
     setIsAdding(false);
     setPreviewImage(null); 
+    setAddFormSku(''); // 重置 SKU
   };
 
   const closeAddModal = () => {
     setIsAdding(false);
     setPreviewImage(null);
+    setAddFormSku('');
   };
 
   return (
@@ -139,20 +195,26 @@ const App: React.FC = () => {
         title={activeTab === 'dashboard' ? '经营概况' : '库存列表'} 
       />
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-28 no-scrollbar relative z-10">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-0 no-scrollbar relative z-10">
         {activeTab === 'dashboard' ? (
-          <div className="space-y-5">
+          <div className="space-y-5 pt-5">
             <Dashboard items={items} history={history} />
             <AIInsightsPanel items={items} />
           </div>
         ) : (
           <div className="min-h-[101%]">
-            <InventoryTable items={items} onUpdateQuantity={updateQuantity} onDeleteItem={deleteItem} />
+            <InventoryTable 
+              items={items} 
+              onUpdateQuantity={updateQuantity} 
+              onDeleteItem={deleteItem} 
+              onSellItem={(item) => setSellingItem(item)} 
+              onScanClick={openScannerForSell} // 传递扫码开启函数
+            />
           </div>
         )}
       </main>
 
-      {/* 底部 TabBar：磨砂质感 + 渐变图标 */}
+      {/* 底部 TabBar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200/60 flex justify-around items-center pb-safe-area safe-pb z-50 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)]">
         
         <button 
@@ -167,7 +229,6 @@ const App: React.FC = () => {
           </span>
         </button>
 
-        {/* 核心操作按钮：强烈的渐变色 */}
         <button 
           onClick={() => setIsAdding(true)} 
           className="flex flex-col items-center justify-center w-full py-2 -mt-8 relative z-10"
@@ -191,7 +252,68 @@ const App: React.FC = () => {
         </button>
       </nav>
 
-      {/* 入库弹窗 */}
+      {/* 3. 全局扫码器 */}
+      {isScanning && (
+        <ScannerModal 
+            onScanSuccess={handleScanSuccess} 
+            onClose={() => setIsScanning(false)} 
+        />
+      )}
+
+      {/* 1. 出售商品弹窗 */}
+      {sellingItem && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-[fadeIn_0.2s] p-4">
+           <div className="bg-white/95 backdrop-blur-xl w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-white/60 animate-[slide-up_0.2s_ease-out]">
+              <div className="text-center mb-5">
+                 <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
+                    <i className="fas fa-shopping-bag text-2xl text-emerald-600"></i>
+                 </div>
+                 <h3 className="text-xl font-bold text-slate-800">确认出售</h3>
+                 <p className="text-sm text-slate-500 mt-1">
+                    商品：<span className="font-bold text-indigo-600">{sellingItem.name}</span>
+                 </p>
+              </div>
+
+              <form onSubmit={handleSellConfirm} className="space-y-4">
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col items-center">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">出售数量</label>
+                    <div className="flex items-center w-full max-w-[200px]">
+                       <input 
+                          type="number" 
+                          name="sellQty"
+                          autoFocus
+                          min="1" 
+                          max={sellingItem.quantity} 
+                          defaultValue="1" 
+                          className="w-full text-center text-3xl font-black text-slate-800 bg-transparent outline-none border-b-2 border-indigo-200 focus:border-indigo-500 transition-colors pb-1"
+                       />
+                    </div>
+                    <div className="text-xs text-slate-400 mt-2">
+                       当前库存: {sellingItem.quantity}
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-3 pt-2">
+                    <button 
+                       type="button" 
+                       onClick={() => setSellingItem(null)}
+                       className="py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                    >
+                       取消
+                    </button>
+                    <button 
+                       type="submit" 
+                       className="py-3 rounded-xl font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-lg shadow-emerald-200 active:scale-95 transition-all"
+                    >
+                       确认出售
+                    </button>
+                 </div>
+              </form>
+           </div>
+        </div>
+      )}
+
+      {/* 2. 入库弹窗 */}
       {isAdding && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/40 backdrop-blur-sm animate-[fadeIn_0.2s]">
           <div className="bg-white/95 backdrop-blur-xl w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto animate-[slide-up_0.3s_ease-out] safe-pb shadow-2xl border-t border-white/50">
@@ -205,42 +327,27 @@ const App: React.FC = () => {
             </div>
             
             <form onSubmit={addItem} className="space-y-5 pb-4">
-              
+              {/* 图片区域略 */}
               <div className="mb-4">
                 <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">商品图片</label>
                 <div className="flex gap-4 items-stretch h-28">
-                    {/* Preview Box */}
                     <div className="w-28 flex-shrink-0 bg-slate-50 rounded-2xl border-2 border-dashed border-indigo-100 flex items-center justify-center overflow-hidden relative shadow-sm">
                          {previewImage ? (
                             <>
                                 <img src={previewImage} alt="Preview" className="w-full h-full object-cover" />
-                                <button 
-                                    type="button"
-                                    onClick={() => setPreviewImage(null)}
-                                    className="absolute top-0 right-0 bg-rose-500/80 text-white w-7 h-7 flex items-center justify-center rounded-bl-xl backdrop-blur-sm shadow-sm"
-                                >
-                                    <i className="fas fa-times text-xs"></i>
-                                </button>
+                                <button type="button" onClick={() => setPreviewImage(null)} className="absolute top-0 right-0 bg-rose-500/80 text-white w-7 h-7 flex items-center justify-center rounded-bl-xl backdrop-blur-sm shadow-sm"><i className="fas fa-times text-xs"></i></button>
                             </>
                          ) : (
-                            <div className="text-center text-slate-300">
-                                <i className="fas fa-image text-2xl mb-1"></i>
-                                <p className="text-[10px]">预览</p>
-                            </div>
+                            <div className="text-center text-slate-300"><i className="fas fa-image text-2xl mb-1"></i><p className="text-[10px]">预览</p></div>
                          )}
                     </div>
-
-                    {/* Actions */}
                     <div className="flex-1 flex flex-col gap-2.5 justify-center">
                          <label className="flex-1 flex items-center justify-center bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-200 active:scale-[0.98] transition-all cursor-pointer relative overflow-hidden group">
-                            <i className="fas fa-camera mr-2"></i>
-                            <span>立即拍照</span>
+                            <i className="fas fa-camera mr-2"></i><span>立即拍照</span>
                             <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} className="hidden" />
                          </label>
-
                          <label className="flex-1 flex items-center justify-center bg-white text-slate-600 rounded-xl text-sm font-bold border border-slate-200 active:scale-[0.98] transition-all cursor-pointer hover:bg-slate-50 hover:border-indigo-200 hover:text-indigo-600">
-                            <i className="fas fa-images mr-2 text-indigo-400"></i>
-                            <span>相册上传</span>
+                            <i className="fas fa-images mr-2 text-indigo-400"></i><span>相册上传</span>
                             <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
                          </label>
                     </div>
@@ -263,20 +370,15 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* 价格录入区域 */}
               <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase text-center block">进价</label>
-                      <input required type="number" step="0.1" name="cost" className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-slate-600 text-center text-sm focus:border-indigo-500 outline-none" placeholder="0" />
+                      <label className="text-[10px] font-bold text-slate-400 uppercase text-center block">进价 (¥)</label>
+                      <input required type="number" step="0.1" name="cost" className="w-full bg-white border border-slate-200 rounded-xl p-3 text-slate-600 text-center text-sm focus:border-indigo-500 outline-none" placeholder="0" />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-indigo-400 uppercase text-center block">批发价</label>
-                      <input required type="number" step="0.1" name="wholesalePrice" className="w-full bg-indigo-50/30 border border-indigo-100 rounded-lg p-2.5 text-indigo-700 text-center text-sm font-medium focus:border-indigo-500 outline-none" placeholder="0" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-emerald-500 uppercase text-center block">零售价</label>
-                      <input required type="number" step="0.1" name="price" className="w-full bg-emerald-50/30 border border-emerald-100 rounded-lg p-2.5 text-emerald-700 font-bold text-center text-sm focus:border-emerald-500 outline-none" placeholder="0" />
+                      <label className="text-[10px] font-bold text-emerald-500 uppercase text-center block">零售价 (¥)</label>
+                      <input required type="number" step="0.1" name="price" className="w-full bg-emerald-50/30 border border-emerald-100 rounded-xl p-3 text-emerald-700 font-bold text-center text-sm focus:border-emerald-500 outline-none" placeholder="0" />
                     </div>
                   </div>
               </div>
@@ -304,7 +406,23 @@ const App: React.FC = () => {
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-500">SKU / 编号</label>
-                <input required name="sku" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-slate-800 focus:border-indigo-500 focus:bg-white outline-none" placeholder="例如：FW-001" />
+                <div className="relative flex gap-2">
+                    <input 
+                        required 
+                        name="sku" 
+                        value={addFormSku}
+                        onChange={(e) => setAddFormSku(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-slate-800 focus:border-indigo-500 focus:bg-white outline-none" 
+                        placeholder="例如：FW-001" 
+                    />
+                    <button 
+                        type="button" 
+                        onClick={openScannerForAdd}
+                        className="w-14 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 active:bg-slate-200 active:text-indigo-600 transition-colors"
+                    >
+                        <i className="fas fa-barcode text-lg"></i>
+                    </button>
+                </div>
               </div>
 
               <button type="submit" className="w-full py-4 mt-4 bg-gradient-to-r from-indigo-600 to-pink-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 active:scale-[0.98] transition-transform flex items-center justify-center text-base">

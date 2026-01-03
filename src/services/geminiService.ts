@@ -11,7 +11,6 @@ export const getInventoryInsights = async (items: FireworkItem[]): Promise<AIIns
       minThreshold: item.minThreshold,
       safety: item.safetyLevel,
       cost: item.cost,
-      wholesale: item.wholesalePrice,
       retail: item.price
     }));
 

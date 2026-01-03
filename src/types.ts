@@ -24,7 +24,6 @@ export interface FireworkItem {
   quantity: number;
   minThreshold: number;
   price: number;          // 零售价
-  wholesalePrice: number; // 批发价
   cost: number;           // 进价
   safetyLevel: SafetyLevel;
   lastUpdated: string;
